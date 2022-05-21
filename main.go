@@ -2,8 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/gocolly/colly"
 )
@@ -13,6 +17,10 @@ var NBS_URL string = "https://nbs.rs/kursnaListaModul/zaDevize.faces?lang=lat"
 
 // List of all monetes in which we are interested
 var ALL_MONETES []string = []string{"EUR", "AUD", "CAD", "CNY", "HRK", "CZK", "DKK", "HUF", "INR", "JPY", "KWD", "NOK", "RUB", "SEK", "CHF", "GBP", "USD", "BYN", "RON", "TRY", "BGN", "BAM", "PLN"}
+
+const HOURS = 24
+const MINUTES = 60
+const SECOND = 60
 
 type NBSMonete struct {
 	moneteName          string
@@ -24,6 +32,27 @@ type NBSMonete struct {
 }
 
 func main() {
+	task(time.Now())
+	tick := time.NewTicker(time.Second * HOURS * MINUTES * SECOND)
+	go scheduler(tick)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	<-sigs
+	tick.Stop()
+}
+
+func scheduler(tick *time.Ticker) {
+	for t := range tick.C {
+		task(t)
+	}
+}
+
+func task(t time.Time) {
+	scrapeNbsMoneteData()
+	fmt.Println("================ collecting done for day", time.Now())
+}
+
+func scrapeNbsMoneteData() {
 	// Init map schema
 	moneteMap := prepareMapSchema(ALL_MONETES)
 	var activeObject *NBSMonete
@@ -108,7 +137,6 @@ func htmlElementDataParser(elementValue string, activeObject *NBSMonete, possiti
 		case 5:
 			floatVal, _ := strconv.ParseFloat(strings.Replace(elementValue, ",", ".", -1), 64)
 			activeObject.toSellCurse = floatVal
-
 		default:
 			break
 		}
