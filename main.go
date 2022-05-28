@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -9,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	firebase "firebase.google.com/go"
 	"github.com/gocolly/colly"
+	"google.golang.org/api/option"
 )
 
 // NBS link for bank page
@@ -29,9 +33,11 @@ type NBSMonete struct {
 	moneteCountRelation int64
 	toByCurse           float64
 	toSellCurse         float64
+	timestamp           time.Time
 }
 
 func main() {
+
 	task(time.Now())
 	tick := time.NewTicker(time.Second * HOURS * MINUTES * SECOND)
 	go scheduler(tick)
@@ -93,6 +99,8 @@ func scrapeNbsMoneteData() {
 	for _, v := range ALL_MONETES {
 		fmt.Println("%+v\n", moneteMap[v])
 	}
+
+	dumpToFirebaseDB(moneteMap)
 }
 
 func prepareMapSchema(moneteList []string) map[string]*NBSMonete {
@@ -122,6 +130,8 @@ func contains(s []string, str string) bool {
 
 func htmlElementDataParser(elementValue string, activeObject *NBSMonete, possitionMappingCounter int) {
 	if activeObject != nil {
+		activeObject.timestamp = time.Now()
+
 		switch possitionMappingCounter {
 		case 1:
 			intVar, _ := strconv.ParseInt(elementValue, 10, 64)
@@ -141,4 +151,39 @@ func htmlElementDataParser(elementValue string, activeObject *NBSMonete, possiti
 			break
 		}
 	}
+}
+
+func dumpToFirebaseDB(moneteMap map[string]*NBSMonete) {
+	// Save to firebase DB
+	opt := option.WithCredentialsFile("./nbs-data-e2e97-firebase-adminsdk-szrjl-eaec7dfe8b.json")
+	app, err := firebase.NewApp(context.Background(), nil, opt)
+	if err != nil {
+		fmt.Errorf("error initializing app: %v", err)
+	}
+
+	client, err := app.Firestore(context.Background())
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	for _, v := range ALL_MONETES {
+		injectionObj := make(map[string]interface{})
+		injectionObj["moneteName"] = moneteMap[v].moneteName
+		injectionObj["moneteCode"] = &moneteMap[v].moneteCode
+		injectionObj["countryName"] = &moneteMap[v].countryName
+		injectionObj["moneteCountRelation"] = &moneteMap[v].moneteCountRelation
+		injectionObj["toByCurse"] = &moneteMap[v].toByCurse
+		injectionObj["toSellCurse"] = &moneteMap[v].toSellCurse
+		injectionObj["timestamp"] = &moneteMap[v].timestamp
+
+		result, _, err := client.Collection("monete").Add(context.Background(), injectionObj)
+
+		if err != nil {
+			log.Fatalln(err)
+		}
+		fmt.Println("Saved %+v\n", result)
+	}
+
+	defer client.Close()
 }
