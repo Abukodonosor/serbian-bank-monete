@@ -21,6 +21,7 @@ var NBS_URL string = "https://nbs.rs/kursnaListaModul/zaDevize.faces?lang=lat"
 
 // List of all monetes in which we are interested
 var ALL_MONETES []string = []string{"EUR", "AUD", "CAD", "CNY", "HRK", "CZK", "DKK", "HUF", "INR", "JPY", "KWD", "NOK", "RUB", "SEK", "CHF", "GBP", "USD", "BYN", "RON", "TRY", "BGN", "BAM", "PLN"}
+const keyFirebaseFile = "nbs-data-e2e97-firebase-adminsdk-szrjl-eaec7dfe8b.json"
 
 const HOURS = 24
 const MINUTES = 60
@@ -155,7 +156,7 @@ func htmlElementDataParser(elementValue string, activeObject *NBSMonete, possiti
 
 func dumpToFirebaseDB(moneteMap map[string]*NBSMonete) {
 	// Save to firebase DB
-	opt := option.WithCredentialsFile("./nbs-data-e2e97-firebase-adminsdk-szrjl-eaec7dfe8b.json")
+	opt := option.WithCredentialsFile("./"+ keyFirebaseFile)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		fmt.Errorf("error initializing app: %v", err)
